@@ -57,3 +57,122 @@ $LT$ (层厚): $80, 100, 120 \ \mu m$
 ## 为了让论文无懈可击，建议在文中补充以下说明
 1. 确认 $P_{base}$：找一下你的 R250M2 设备铭牌，看它的额定功率是多少（通常写在机器背面，比如 "Rated Power 3.5kW"）。如果找不到，就引用 Thomas 的 "16% 激光占比" 理论推导一个值。(已经解决，通过查找官网，后续论文可以提及估算的方法)
 2. 解释 $K_{penalty}$：引用 Thomas (2014) 关于 "Ill-structured costs" 和 "Post-processing costs (approx 8.4%)" 的数据，说明你为什么把惩罚系数设定在这个范围。
+
+
+
+
+
+
+
+
+# 2025/12/6
+## 论文 A novel hybrid multi-objective algorithm to solve the generalized cubic cell formation problem  思路借鉴
+这篇参考论文（Bouaziz et al., 2023）的核心方法论对于解决你的大层厚LPBF多目标优化问题非常对症。你之前的困扰在于不知道如何处理非线性模型（多项式）以及如何同时平衡三个目标。
+下面我结合你的具体案例（碳排放、成本、效率），详细拆解如何参考他的 Eq. 17 和 Eq. 18 来构建你自己的优化模型。
+1. 核心思想：降维打击（1个主目标 + 2个约束）
+   多目标优化（MOO）最难的地方在于三个目标通常是打架的。AUGMECON-R 的核心逻辑是：不要试图同时优化三个，而是“轮流坐庄”。
+   *选一个做“主目标”（Main Objective）：通常选你最关心的，或者最具代表性的（比如碳排放）。
+   *把另外两个变成“约束”（Constraints）：强行规定另外两个目标必须达到某个标准（$\varepsilon$），然后在这个标准下看主目标能优化到什么程度。
+   *轮询（Grid Search）：通过不断调整那两个约束的标准（比如要求成本必须低于100，然后低于90，低于80...），你就能遍历出所有的可能性。
+
+
+   鉴于你所面临的求解器技术限制（Gurobi 不支持非线性公式）和你搭档提供的高精度回归模型，采用这种**“先宽后严”**的策略是目前最合理、最可行的方案
+
+
+
+
+
+
+
+
+
+
+   # 一、 模型参数定义 (基于你的笔记)
+首先，我们将你笔记中的数据标准化，统一单位（建议统一为 mm, s, kg, Yuan, J）。
+## 1. 确定性参数 (Deterministic Parameters)
+基础功率 $P_{base} = 5500 \ W$ (5.5 kW，基于你对 6.5kW 总功率的推算，非常关键的参数)。
+材料密度 $\rho = 7.7 \times 10^{-6} \ kg/mm^3$。
+碳排放因子：
+$EF_{elec} = 0.5366 \ kgCO_2/kWh = 1.49 \times 10^{-4} \ kgCO_2/kJ$。$EF_{powder} = 1.45 \ kgCO_2/kg$。
+气体消耗：
+流量 $Q_{gas} = 3 \ L/min = 0.05 \ L/s$。
+单价 $Price_{gas} = 53 \ Yuan/m^3 = 0.053 \ Yuan/L$ (参考表格数据)。
+每秒气体成本 $C_{gas\_sec} = 0.05 \times 0.053 = 0.00265 \ Yuan/s$。
+## 2. 不确定性参数 (Stochastic Scenarios)根据 PPT，我们设定三个场景 $s \in \{1, 2, 3\}$ 来体现两阶段随机规划：
+场景 (s),概率 (probs​),粉末损耗率 (ηloss​),粉末单价 (Cpowder​)
+  1 (悲观),  0.25,      16% (0.16),       230 Yuan/kg
+  2 (正常),  0.50,      13% (0.13),       210 Yuan/kg
+  3 (乐观),  0.25,      10% (0.10),       190 Yuan/kg
+
+
+# 二、 目标函数重构 (加入“冲突项”)
+这是方案二的灵魂。我们将原公式中的 $(100-RD)^2$ 移除（放入后处理），改为引入后处理成本函数。
+## 目标 1：期望综合成本 (Min Expected Cost)
+$$Min \ Cost = \underbrace{\frac{C_{time}}{V \cdot H \cdot LT}}_{\text{打印过程成本 (随LT降低)}} + \underbrace{E[C_{mat}]}_{\text{期望材料成本}} + \underbrace{Cost_{Post}(LT)}_{\text{后处理成本 (随LT升高)}}$$
+各项拆解：打印成本： $C_{time}$ 是机器、人工、气体的每秒总花费；分母是体积构建率 ($mm^3/s$)。
+期望材料成本：
+$$E[C_{mat}] = \sum_{s=1}^{3} prob_s \times \left[ \rho \cdot (1 + \eta_{loss, s}) \cdot C_{powder, s} \right]$$
+后处理成本 (制造冲突的关键)： 设定一个阶梯函数或线性函数。假设层厚越大，表面越粗糙，打磨时间越长。
+$$Cost_{Post}(LT) = C_{base\_post} \times (1 + \alpha \cdot \frac{LT - 80}{40})$$
+建议设定值：
+$LT=80$: $Cost_{post} = 20 \ Yuan/cm^3$ (基准)
+$LT=100$: $Cost_{post} = 25 \ Yuan/cm^3$ (增加 25%)
+$LT=120$: $Cost_{post} = 35 \ Yuan/cm^3$ (增加 75%，惩罚大层厚的粗糙度)
+## 目标 2：期望碳排放 (Min Expected Carbon)
+$$Min \ CE = \underbrace{\frac{(P_{laser} + P_{base}) \cdot EF_{elec}}{V \cdot H \cdot LT}}_{\text{打印能耗碳}} + \underbrace{E[CE_{mat}]}_{\text{期望材料碳}}$$
+注意： $P_{laser}$ 是变量 $P$， $P_{base}$ 是常数 5500W。
+期望材料碳：$$E[CE_{mat}] = \sum_{s=1}^{3} prob_s \times \left[ \rho \cdot (1 + \eta_{loss, s}) \cdot EF_{powder} \right]$$
+## 目标 3：生产效率 (Max Efficiency)
+$$Max \ Eff = V \times H \times LT$$
+## 三、 约束条件 (防止塌陷的物理防线)
+为了保证优化结果在物理上是可行的（能熔化粉末），必须加入你之前确认的 ED 窗口约束。
+$$30 \le \frac{P}{V \cdot H \cdot LT} \le 70$$
+Gurobi 线性化写法：
+$P \ge 30 \times V \times H \times LT$
+$P \le 70 \times V \times H \times LT$
+
+
+# 代码分层架构设计
+## 第一层：配置与数据层 (Configuration & Data Layer)
+作用： 集中管理所有的物理参数、经济参数和不确定性场景。为什么重要： 你的参数（如粉末价格、P_base）有了更新（如基于图片证据），集中在这里修改可以避免“改漏了”的情况。
+输入内容：
+确定性参数： $P_{base}$ (5500W), $C_{machine}$, $C_{gas}$, $EF_{elec}$ 等。
+随机场景 (Scenarios)： 定义三个场景的字典列表（概率、粉末损耗率、粉末价格）。
+后处理成本映射 (Post-processing Map)： 定义 80/100/120um 对应的后处理成本系数（这是制造冲突的关键）。
+决策变量边界： $P, V, H$ 的上下界。
+## 第二层：数学建模层 (Mathematical Modeling Layer) —— 核心引擎
+作用： 利用 Pyomo 构建单个层厚 ($LT$) 下的优化模型。这是 PyAugmecon 能够调用的标准接口。
+关键逻辑：
+1. 接收参数： 接收一个固定的 $LT$ 值作为输入。
+2. 定义变量： 定义 $P, V, H$ 为优化变量。
+3. 处理非线性 (Gurobi 适配)：定义辅助变量 BuildRate ($= V \cdot H \cdot LT_{const}$)。注意：因为 LT 是常数，VH 是二次项，Gurobi 开启 NonConvex 后可直接处理，不需要复杂的对数变换。
+4. 构建目标函数 (ObjectiveList)：计算期望成本 ($E[Cost]$) 和期望碳排放 ($E[Carbon]$)。
+注意：PyAugmecon 默认最大化，对于最小化目标需乘以 -1。
+5. 添加物理约束： 写入能量密度窗口约束 ($30 \le ED \le 70$)。
+6. 返回模型： 将构建好的 model 对象返回给调用者。
+## 第三层：分层优化执行层 (Stratified Execution Layer)
+作用： 实现“分层策略”，循环调用求解器。关键逻辑：
+循环控制： 遍历 for lt_val in [80, 100, 120]:。
+实例化模型： 调用“第二层”的函数，传入当前的 $LT$，获取一个具体的 Pyomo 模型。
+配置求解器：实例化 PyAugmecon 对象。
+关键设置： 传入 solver_opts={'NonConvex': 2, 'MIPGap': 0.01} 激活 Gurobi 的非凸二次规划能力。
+设置帕托点数量 (grid_points)。执行求解： 
+调用 .solve()。
+数据暂存： 将该 $LT$ 下算出的所有帕托解（Pareto Solutions）提取并打上标签（如 LT=80），存入总结果列表。
+## 第四层：后处理与筛选层 (Post-processing & Screening Layer)
+作用： 执行“后验筛选”策略，清洗数据并可视化。
+关键逻辑：
+RD 预测与筛选：加载你搭档的非线性 RD 回归公式。遍历第三层产出的所有解，计算预测致密度。硬剔除： 丢弃 $RD < 99.5\%$ 的解。
+质量惩罚计算：(可选) 对剩下的解，加上之前移除的 $(100-RD)^2$ 惩罚成本，更新最终得分。
+最终决策 (Decision Making)：使用 TOPSIS 或 熵权法，从剩下的优质解中选出那个“绿色圆点” (Best Compromise Solution)。
+可视化： 绘制 3D 帕托前沿图（区分不同 $LT$ 的点的颜色）。
+
+# 项目文件结构
+My_LPBF_Research/
+│
+├── config.py              # 第一层：配置数据 (存放所有参数)
+├── model_builder.py       # 第二层：模型构建 (定义 Pyomo 模型函数)
+├── post_process.py        # 第四层：后处理 (RD筛选、计算最终得分)
+├── main.py                # 第三层：主程序 (分层循环、调用求解器)
+│
+└── results/               # 存放输出结果 (Excel, 图片)
