@@ -1,0 +1,16 @@
+[2025-12-10 22:55:23,204] Name: Undefined
+[2025-12-10 22:55:23,204] Grid points: 2
+[2025-12-10 22:55:23,204] Nadir points: None
+[2025-12-10 22:55:23,204] Penalty weight: 0.001
+[2025-12-10 22:55:23,204] Early exit: True
+[2025-12-10 22:55:23,204] Bypass coefficient: True
+[2025-12-10 22:55:23,204] Flag array: True
+[2025-12-10 22:55:23,204] CPU Count: 18
+[2025-12-10 22:55:23,204] Redivide work: True
+[2025-12-10 22:55:23,204] Shared flag array: True
+[2025-12-10 22:55:23,204] ==============================
+[2025-12-10 22:55:23,204] Constructing payoff
+[2025-12-10 22:55:23,336] Finding objective function range
+[2025-12-10 22:55:23,338] Converting optimization problem
+[2025-12-10 22:55:23,941] Dividing grid over 2 process(es)
+[2025-12-10 22:55:24,590] Starting 2 worker process(es)

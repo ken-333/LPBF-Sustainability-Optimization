@@ -25,20 +25,19 @@ C_MACHINE = 154.0 / 3600.0  # Yuan/s (154 Yuan/hour)
 C_LABOR = 60.0 / 3600.0    # Yuan/s (60 Yuan/hour)
 
 #integrated time cost coefficient (CNY/s)
-# COST_TIME = C_MACHINE + C_LABOR + C_GAS_SCE
-COST_TIME_TOTAL = C_MACHINE + C_LABOR + C_GAS_SCE
+C_TIME_TOTAL = C_MACHINE + C_LABOR + C_GAS_SCE
 
 # ==========================
 # 3.stochastic parameters
 # ==========================
 # "Two-stage Stochastic Programming"
-SCENERIOS = [
+SCENARIOS = [
     # Scenerio 1:pessimistic
-    {'probability': 0.25, 'loss_rate': 0.16,'price':110},
+    {'prob': 0.25, 'loss_rate': 0.16,'price':110},
     # Scenerio 2:normal
-    {'probability': 0.50, 'loss_rate': 0.13,'price':100},
+    {'prob': 0.50, 'loss_rate': 0.13,'price':100},
     # Scenerio 3:optimistic
-    {'probability': 0.25, 'loss_rate': 0.10,'price':90},
+    {'prob': 0.25, 'loss_rate': 0.10,'price':90},
 ]
 
 # ==========================
@@ -56,10 +55,10 @@ POST_COST_MAP = {
 # ==========================
 # 5.variables and solver settings
 # ==========================
-BOUND = {
+BOUNDS = {
     'P':(385,460),         #W (laser power)
     'V':(700,1150),       #mm/s (scan speed)
-    'E':(90,115),         #J/mm3 (volumetric energy density)
+    'H':(90,115),         #J/mm3 (volumetric energy density)
 }
 
 # constraint
@@ -69,7 +68,7 @@ ED_MAX = 70 #J/mm3 (目标能量密度)
 #GUROBI settings
 # NonConvex =2 this is the crucial parameter to deal with non-linear problems
 SOLVER_OPTS = {
-    'NomConvex': 2, # 开启非凸二次规划支持
+    'NonConvex': 2, # 开启非凸二次规划支持
     'MIPGap': 0.01, # 1% optimality gap
     'TimeLimit': 300 # seconds 限制每个点算5分钟，防止卡死
 }
