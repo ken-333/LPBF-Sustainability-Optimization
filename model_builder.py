@@ -54,12 +54,12 @@ def create_lpbf_model(lt_val_um): # 输入参数是（layer thickness）lt_val_u
  expected_mat_carbon += s['prob'] * mat_carbon
 
  # Obtain the post-processing cost corresponding to the current layer thickness (conflicting item)
- post_cost = cfg.POST_COST_MAP[lt_val_um] #根据当前层厚 lt_val_um，查找对应的后处理成本。
+ post_cost_dynamic = cfg.POST_COST_MAP[lt_val_um]* (1 + 0.0001 * m.V) #根据当前层厚 lt_val_um，查找对应的后处理成本。
  
  # ==========================
  # Objective 1: Minimize total cost (MAX -cost)
  # ==========================
- expr_cost = cfg.C_TIME_TOTAL * m.InvRate + expected_mat_cost + post_cost
+ expr_cost = cfg.C_TIME_TOTAL * m.InvRate + expected_mat_cost + post_cost_dynamic + (0.01 * m.P)
  m.obj_list.add(expr=-1 * expr_cost, sense=maximize) # we need the minimize cost, but objective function only defelts to maximize. So we need to multiply -1 
 
  # ==========================

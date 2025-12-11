@@ -1,0 +1,24 @@
+[2025-12-11 00:37:56,516] Name: Undefined
+[2025-12-11 00:37:56,516] Grid points: 15
+[2025-12-11 00:37:56,516] Nadir points: None
+[2025-12-11 00:37:56,516] Penalty weight: 0.001
+[2025-12-11 00:37:56,516] Early exit: True
+[2025-12-11 00:37:56,516] Bypass coefficient: True
+[2025-12-11 00:37:56,516] Flag array: True
+[2025-12-11 00:37:56,516] CPU Count: 18
+[2025-12-11 00:37:56,516] Redivide work: True
+[2025-12-11 00:37:56,516] Shared flag array: True
+[2025-12-11 00:37:56,516] ==============================
+[2025-12-11 00:37:56,719] Constructing payoff
+[2025-12-11 00:37:56,775] Finding objective function range
+[2025-12-11 00:37:56,776] Converting optimization problem
+[2025-12-11 00:37:57,435] Dividing grid over 15 process(es)
+[2025-12-11 00:37:58,064] Starting 15 worker process(es)
+[2025-12-11 00:38:09,354] ==============================
+[2025-12-11 00:38:09,354] Runtime: 12.64 seconds
+[2025-12-11 00:38:09,354] Models solved: 225
+[2025-12-11 00:38:09,354] Infeasibilities: 0
+[2025-12-11 00:38:09,354] Solutions: 156
+[2025-12-11 00:38:09,354] Unique solutions: 95
+[2025-12-11 00:38:09,354] Unique Pareto solutions: 67
+[2025-12-11 00:38:09,354] Hypervolume indicator: 2.6142372850834403e-05

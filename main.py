@@ -22,7 +22,7 @@ def run_optimization():
         #2. setup PyAugmecon optimizer
         opts = {
             'log_name': f'log_lt_{lt_val}', # log file name
-            'grid_points': 2,               # number of grid points in each objective
+            'grid_points': 15,               # number of grid points in each objective
             'solver_name': 'gurobi',        # choose Gurobi as the solver
              # 【关键】传递给 Gurobi 的参数
             'solver_opts': cfg.SOLVER_OPTS  # 包含 {'NonConvex': 2}
