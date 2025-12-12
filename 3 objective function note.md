@@ -108,16 +108,23 @@ $EF_{elec} = 0.5366 \ kgCO_2/kWh = 1.49 \times 10^{-4} \ kgCO_2/kJ$。$EF_{powde
 # 二、 目标函数重构 (加入“冲突项”)
 这是方案二的灵魂。我们将原公式中的 $(100-RD)^2$ 移除（放入后处理），改为引入后处理成本函数。
 ## 目标 1：期望综合成本 (Min Expected Cost)
-$$Min \ Cost = \underbrace{\frac{C_{time}}{V \cdot H \cdot LT}}_{\text{打印过程成本 (随LT降低)}} + \underbrace{E[C_{mat}]}_{\text{期望材料成本}} + \underbrace{Cost_{Post}(LT)}_{\text{后处理成本 (随LT升高)}}$$
+$$Min \ Cost = \underbrace{\frac{C_{time}}{V \cdot H \cdot LT}}_{\text{Operation}} + \underbrace{E[C_{mat}]}_{\text{Material}} + \underbrace{Cost_{Post}(LT, V)}_{\text{Post-process}} + \underbrace{Cost_{Health}(P)}_{\text{Equipment}}$$
 各项拆解：打印成本： $C_{time}$ 是机器、人工、气体的每秒总花费；分母是体积构建率 ($mm^3/s$)。
 期望材料成本：
 $$E[C_{mat}] = \sum_{s=1}^{3} prob_s \times \left[ \rho \cdot (1 + \eta_{loss, s}) \cdot C_{powder, s} \right]$$
-后处理成本 (制造冲突的关键)： 设定一个阶梯函数或线性函数。假设层厚越大，表面越粗糙，打磨时间越长。
-$$Cost_{Post}(LT) = C_{base\_post} \times (1 + \alpha \cdot \frac{LT - 80}{40})$$
+动态后处理成本 (制造冲突的关键)： 设定一个阶梯函数或线性函数。假设层厚越大，表面越粗糙，打磨时间越长。除了层厚带来的阶梯效应外，扫描速度 ($V$) 越快，熔池越不稳定，表面粗糙度越差，导致后续打磨抛光的成本非线性上升。这限制了无脑追求极速。
+$$Cost_{Post} = C_{base\_post}(LT) \times (1 + \alpha \cdot V)$$
 建议设定值：
 $LT=80$: $Cost_{post} = 20 \ Yuan/cm^3$ (基准)
 $LT=100$: $Cost_{post} = 25 \ Yuan/cm^3$ (增加 25%)
 $LT=120$: $Cost_{post} = 35 \ Yuan/cm^3$ (增加 75%，惩罚大层厚的粗糙度)
+
+$Cost_{Health}$ (设备健康成本) 
+$$Cost_{Health} = \omega_{p} \cdot P$$
+参数： $\omega_{p} = 0.01$ (惩罚权重)
+物理意义： 虽然激光器电费占比不高，但长期高功率 ($P$) 满负荷运行会加速核心光学部件的老化，增加维护风险。引入此项微量惩罚，迫使算法在“非必要”情况下避免触碰设备物理极限 (460W)。
+数学作用： 此项同时起到了正则化 (Regularization) 的作用，消除了帕托前沿的退化 (Degeneracy)，解决了数值计算中的除零问题。
+
 ## 目标 2：期望碳排放 (Min Expected Carbon)
 $$Min \ CE = \underbrace{\frac{(P_{laser} + P_{base}) \cdot EF_{elec}}{V \cdot H \cdot LT}}_{\text{打印能耗碳}} + \underbrace{E[CE_{mat}]}_{\text{期望材料碳}}$$
 注意： $P_{laser}$ 是变量 $P$， $P_{base}$ 是常数 5500W。
