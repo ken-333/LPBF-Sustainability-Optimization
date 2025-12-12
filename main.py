@@ -1,7 +1,7 @@
 import pandas as pd # for data handling in order to store results and exchange to excel
 from  pyaugmecon import PyAugmecon
 import config as cfg
-from model_builder import create_lpbf_model
+from test import create_lpbf_model
 
 def run_optimization():
     all_raw_results = []  # List to store raw Pareto results for all layer thicknesses

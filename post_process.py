@@ -163,15 +163,9 @@ def main():
     df_opt['ED_Calculated'] = df_opt['P_W'] / (df_opt['V_mm_s'] * df_opt['H_um'] * df_opt['LT_um'] * 1e-6)
     df_opt['RD_Predicted'] = df_opt.apply(calculate_rd_manual, axis=1)
      
-    print("-" * 30)
-    print(f"诊断信息：")
-    print(f"预测 RD 最小值: {df_opt['RD_Predicted'].min():.4f}%")
-    print(f"预测 RD 最大值: {df_opt['RD_Predicted'].max():.4f}%")
-    print(f"预测 RD 平均值: {df_opt['RD_Predicted'].mean():.4f}%")
-    print("-" * 30)
 
     #筛选标准: RD >= 95%
-    df_valid = df_opt[df_opt['RD_Predicted'] >= 99.5].copy()
+    df_valid = df_opt[df_opt['RD_Predicted'] >= 99].copy()
     print(f"   -> 合格解数量 (RD >= 99.5%): {len(df_valid)}")
 
     if len(df_valid) == 0:
