@@ -34,11 +34,11 @@ C_TIME_TOTAL = C_MACHINE + C_LABOR + C_GAS_SCE
 # "Two-stage Stochastic Programming"
 SCENARIOS = [
     # Scenerio 1:pessimistic
-    {'prob': 0.25, 'loss_rate': 0.16,'price':110},
+    {'prob': 0.25, 'loss_rate': 0.16,'price':110},  # 模拟技术不熟练或者供应链危机
     # Scenerio 2:normal
-    {'prob': 0.50, 'loss_rate': 0.13,'price':100},
+    {'prob': 0.50, 'loss_rate': 0.13,'price':100},  #模拟日常生产
     # Scenerio 3:optimistic
-    {'prob': 0.25, 'loss_rate': 0.10,'price':90},
+    {'prob': 0.25, 'loss_rate': 0.10,'price':90},   #模拟技术成熟或大宗采购
 ]
 
 # ==========================
