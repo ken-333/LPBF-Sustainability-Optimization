@@ -107,7 +107,7 @@ class HycridSolver:
         # 1. 定义 SLSQP 目标函数 (纯净版，无罚函数)
         def exact_objective(x):
            metrics = self._get_all_metrics(x)
-           val = metrics[promary_obj_name]
+           val = metrics[primary_obj_name]
            return -val if primary_obj_name == 'Efficiency' else val
         
         # 2. 定义严格约束 (Constraints for SLSQP)
@@ -131,7 +131,7 @@ class HycridSolver:
         #运行 SLSQP (从 DE 的结果出发) 
         slsqp_res = minimize(       #SLSQP 是局部算法，需要初值；DE 给了一个“已经在好区域”的点
            exact_objective,
-           x0=de_res.x,
+           x0=de_res.x,                # SLSQP 是 局部优化算法,它不能像 DE 那样全局乱试,它需要一个 起点        de_res 是 differential_evolution() 返回的“结果对象”   .x 是这个对象里已经帮你算好的“最优解变量”
            bounds=self.bounds,         #bounds 保证不出物理范围
            constraints=cons,           #constraints 强制满足硬约束（RD≥99.5, ED窗口, ε约束）
            method='SLSQP',
@@ -143,8 +143,9 @@ class HycridSolver:
         # ==========================================================
 
         # 优先使用精修后的解，如果精修失败，检查 DE 原解是否碰巧合格
+        # 逻辑就是：如果 SLSQP 精修成功：用 SLSQP 的解（更符合严格约束，成本更优）。 如果 SLSQP 精修失败：退回 DE 的解（有时 DE 本身“碰巧”已经满足 99.5）
         final_x = slsqp_res.x if slsqp_res.success else de_res.x
-        final_metrics = self._get_all_metrics(final_x)
+        final_metrics = self._get_all_metrics(final_x)   #用最终选定的 final_x 再跑一次物理模型，拿到 Cost/Carbon/RD/ED/Efficiency 等指标。
 
         #最终严格检查 (Strict Feasibility Check)
         is_feasible = True
@@ -157,10 +158,10 @@ class HycridSolver:
 
         #检查 AUGMECON 约束
         for c_name, c_limit in constraint_map.items():
-           val = final_metrics[c_name]
+           val = final_metrics[c_name]                          #对每条约束做严格检查：Cost/Carbon（min 型）：必须 val <= limit     Efficiency（max 型）：必须 val >= limit
            if c_name in ['Cost', 'Carbon']:
-              if val > c_limit + 0.05: is_feasible = False
-           elif c_name == 'Efficiency':
+              if val > c_limit + 0.05: is_feasible = False     # 容差            
+           elif c_name == 'Efficiency': 
               if val < c_limit - 0.001: is_feasible = False
 
         if is_feasible:

@@ -12,3 +12,9 @@ Project_Root/
 └── Layer 4: 执行与后处理 (入口)
     ├── main.py             <-- [重写] 负责组装以上模块并运行
     └── post_process.py     <-- [保留] 负责画图、排序、导出
+
+
+
+
+
+ AUGMECON-R 是调度器，HybridSolver 是执行器。
