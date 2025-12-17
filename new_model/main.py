@@ -5,7 +5,7 @@ import os
 # 导入我们刚刚构建的 Layer 2 和 Layer 3
 # ============================================================
 from augmecon_r import AugmeconRGamsStyle  # Layer 2: 总指挥
-from hybrid_solver import HycridSolver     # Layer 3: 特种部队 (H-DE 实现)
+from hybrid_solver import HybridSolver     # Layer 3: 特种部队 (H-DE 实现)
 import post_process                        # Layer 4: 后处理 (画图/排序)
 
 # ============================================================
@@ -21,7 +21,7 @@ OBJECTIVE_CONFIG = {
 }
 
 # 网格密度 (决定帕累托前沿的精细度)
-GRID_POINTS = 20
+GRID_POINTS = 10
 
 def run_pipeline():
     print(f"{'='*60}")
@@ -40,7 +40,7 @@ def run_pipeline():
         # Step 1: 组建特种部队 (Layer 3)
         # ---------------------------------------------------------
         # 实例化混合求解器，注入当前层厚参数
-        solver = HycridSolver(lt_val = lt)
+        solver = HybridSolver(lt_val = lt)
 
         # ---------------------------------------------------------
         # Step 2: 派遣总指挥 (Layer 2)
@@ -59,7 +59,7 @@ def run_pipeline():
             # 这一步会自动执行 Payoff Table 计算 -> 网格生成 -> 循环求解
             df_res = controller.run()
 
-            if not df_res.emoty:
+            if not df_res.empty:
                 # 标记当前层厚
                 df_res['LT_um'] = lt #因为 solver 层厚是固定的，但 controller.run() 的结果里不一定带 LT。
 
@@ -93,7 +93,7 @@ def run_pipeline():
         final_df = pd.concat(all_layer_results, ignore_index=True)    #pd.concat(...) 把列表里的所有 DataFrame，像“竖着叠表格”一样拼成一个大表   ignore_index=True ：自动重新编号 index
 
         # 保存原始数据
-        output_file = "final_pareto_results.xlsx"
+        output_file = "raw_pareto_results.xlsx"
         final_df.to_excel(output_file, index=False)    #把这个大表 final_df 保存成一个 Excel 文件。 index=False：将index删掉，没用
         print(f"📄 结果已保存至: {os.path.abspath(output_file)}")
 

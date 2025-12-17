@@ -2,7 +2,7 @@ import numpy as np          # in order to handle numerical arrays
 from scipy.optimize import differential_evolution, minimize     #导入两个优化器   differential_evolution：全局随机搜索（不需要梯度）minimize：局部优化器接口（用 SLSQP 支持约束）
 import physics_model   # from layer 1 my physics engine evaluating Cost/Carbon/Efficiency/RD/ED
 
-class HycridSolver:
+class HybridSolver:
     """
     Layer 3: 战术执行层 (Tactical Layer)
     
@@ -55,45 +55,50 @@ class HycridSolver:
         def relaxed_objective(x):
             metrics = self._get_all_metrics(x)
 
-            # 1. 获取主目标值 (如果是 Max 问题则取反)
-            score = metrics[primary_obj_name]
-            if primary_obj_name == 'Efficiency':
-             score = -score
-        
-            PENALTY = 1e6
-
-            # 2. 物理约束松弛 (Relaxation Strategy)
-            # 创新点：只要求 99.0%，保护种群多样性
-            if metrics['RD'] < 99.0:
-              score += PENALTY * (99.0 - metrics['RD'])**2
-
+            # --- [核心修改 1] 生存模式：优先满足硬约束 ---
+            # 1. 检查致密度 RD >= 99.5
+            # 如果不满足，直接返回巨额罚分，完全忽略 Cost/Carbon
+            if metrics['RD'] < 99.5:
+               # 1e8 是基础罚分，确保它比任何可行解都差
+               # (99.5 - RD) * 1e6 提供梯度，指引算法爬向 99.5
+               return 1e8 + (99.5 - metrics['RD']) * 1e6
+            
+            # 2. 检查能量密度 ED (30 ~ 80)
             # ED 约束 (30-80)
             if metrics['ED'] < 30.0: 
-               score += PENALTY * (30.0 - metrics['ED'])**2
+               return 1e8 + (30.0 - metrics['ED']) * 1e6
             elif metrics['ED'] < 80.0:
-               score += PENALTY * (metrics['ED'] - 80.0)**2
+               return 1e8 + (metrics['ED'] - 80.0) * 1e6
+            
+            # --- 优化模式：活下来了，才开始算分 ---
 
-            # 3. AUGMECON 动态约束
-            # 根据总指挥下达的 epsilon 进行惩罚
+            # 3. 计算主目标
+            score = metrics[primary_obj_name]
+            if primary_obj_name == 'Efficiency':
+               score = -score
+
+            # 4. 处理 AUGMECON 的软约束 (如 Carbon <= epsilon)
+            # 这些是优化层面的约束，违反了只加适量罚分
+            PENALTY = 1e6
             for c_name, c_limit in constraint_map.items():
-               val = metrics[c_name]
-               # Min目标 > Limit 则罚; Max目标 < Limit 则罚
-               if c_name in ['Cost', 'Carbon']: #Min 类型
-                  if val > c_limit:
-                     score += PENALTY * (val - c_limit)**2
-               elif c_name == 'Efficiency':  # Max 类型
-                  if val < c_limit:
-                     score += PENALTY * (c_limit - val)**2
+                val = metrics[c_name]
+                if c_name in ['Cost', 'Carbon']: # Min 目标
+                    if val > c_limit:
+                        score += PENALTY * (val - c_limit)**2
+                elif c_name == 'Efficiency':     # Max 目标
+                    if val < c_limit:
+                        score += PENALTY * (c_limit - val)**2
             
             return score
-        
+
         # 运行 DE
         de_res = differential_evolution(
            relaxed_objective, # 我的“目标+罚函数”
            self.bounds,       # 变量范围
            strategy= 'best1bin', # 经典稳健策略
-           maxiter=50,         # 粗搜阶段不需要太久，主要找 basin
-           popsize=20,         # 种群大一点提高全局探索能力（更稳，但慢）
+           maxiter=200,         # 粗搜阶段不需要太久，主要找 basin
+           popsize=50,         # 种群大一点提高全局探索能力（更稳，但慢）
+           tol=0.01,         # 新增: 容差，防止过早收敛
            seed= 42            # 保证可复现（论文必须强调 reproducibility）
         )
         
@@ -151,7 +156,7 @@ class HycridSolver:
         is_feasible = True
 
         # 检查物理约束
-        if final_metrics['RD'] < 99.49:
+        if final_metrics['RD'] < 99.45:
            is_feasible = False   # 允许微小误差
         if not (30.00 <= final_metrics['ED'] <= 80.0):
            is_feasible = False
@@ -169,6 +174,9 @@ class HycridSolver:
             return {
                 'is_feasible': True,
                 'x': final_x,
+                'P_W': final_x[0],      # ✅ 显式保存 P
+                'V_mm_s': final_x[1],   # ✅ 显式保存 V
+                'H_um': final_x[2],     # ✅ 显式保存 H
                 **final_metrics  # 解包所有指标 (Cost, Carbon, etc.)
             }
         else:
@@ -187,4 +195,3 @@ class HycridSolver:
 
 
         
-

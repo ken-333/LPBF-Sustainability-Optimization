@@ -1,0 +1,12 @@
+[2025-12-17 00:18:46,324] Name: Undefined
+[2025-12-17 00:18:46,324] Grid points: 10
+[2025-12-17 00:18:46,324] Nadir points: None
+[2025-12-17 00:18:46,324] Penalty weight: 0.001
+[2025-12-17 00:18:46,324] Early exit: True
+[2025-12-17 00:18:46,324] Bypass coefficient: True
+[2025-12-17 00:18:46,324] Flag array: True
+[2025-12-17 00:18:46,324] CPU Count: 18
+[2025-12-17 00:18:46,325] Redivide work: True
+[2025-12-17 00:18:46,325] Shared flag array: True
+[2025-12-17 00:18:46,325] ==============================
+[2025-12-17 00:18:46,337] Constructing payoff
