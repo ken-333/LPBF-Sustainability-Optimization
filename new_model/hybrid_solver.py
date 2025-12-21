@@ -31,8 +31,12 @@ class HybridSolver:
         }
     
     def solve(self, primary_obj_name, constraint_map):
+        """
+        执行优化。
+        :param primary_obj_name: 动态指定要优化的主目标 (Cost, Carbon, Efficiency, Quality_Robustness)
+        """
         # ==========================================================
-        # Phase 1: 定义目标函数
+        # Phase 1: 定义目标函数 (动态适配)
         # ==========================================================
         def relaxed_objective(x):
             metrics = self._get_all_metrics(x)
@@ -43,21 +47,51 @@ class HybridSolver:
             quality_loss = (100.0 - rd_pred) ** 2
             stability_penalty = ((ed_val - 50.0) / 20.0) ** 2
             pri_val = quality_loss + 1.0 * stability_penalty   # 👉 PRI 不是物理模型给的，是你人为设计的“质量 + 稳定性综合指标”
+            
+            # 把 PRI 也塞进 metrics 以便统一调用
+            metrics['Quality_Robustness'] = pri_val
 
+            # --- 计算约束违约 (Penalty) ---
             violation = 0.0   #如果 x 完全合格 → violation 还是 0  只要有一条不合格 → violation 就开始累加
-            # 1. 物理底线
+            # A. 物理硬底线
             if rd_pred < 99.5: violation += (99.5 - rd_pred) * 1e6
             
-            # 2. 动态约束检查
-            if 'Carbon' in constraint_map and metrics['Carbon'] > constraint_map['Carbon']:
-                violation += (metrics['Carbon'] - constraint_map['Carbon']) * 1e5   # 这里罚得比 RD 轻（1e5 vs 1e6）
-            if 'Efficiency' in constraint_map and metrics['Efficiency'] < constraint_map['Efficiency']:
-                violation += (constraint_map['Efficiency'] - metrics['Efficiency']) * 1e5
-            if 'Quality_Robustness' in constraint_map and pri_val > constraint_map['Quality_Robustness']:
-                violation += (pri_val - constraint_map['Quality_Robustness']) * 1e5
 
-            if violation > 0: return 1e9 + violation
-            else: return metrics['Cost'] / 4.0
+            # B. AUGMECON 动态约束
+            # 遍历所有约束条件，除了当前正在优化的主目标
+            for c_name, c_limit in constraint_map.items():
+                if c_name == primary_obj_name: continue # 自己不能约束自己
+                
+                val = metrics[c_name]
+
+                # 根据目标类型判断违约
+                if c_name == 'Efficiency':
+                    # Max 目标: 要求 val >= limit
+                    if val < c_limit: violation += (c_limit - val) * 1e5
+                else:
+                    # Min 目标 (Cost, Carbon, PRI): 要求 val <= limit
+                    if val > c_limit: violation += (val - c_limit) * 1e5
+
+
+            # --- 2. 返回目标函数值 ---
+            if violation > 0: 
+                return 1e9 + violation
+            else: 
+                obj_val = metrics[primary_obj_name]  # 如果可行，返回主目标的值 (归一化以便求解器工作更好)
+
+                # [关键修复]：根据目标名字决定优化方向和缩放
+                if primary_obj_name == 'Cost':
+                    return obj_val / 4.0          # Min Cost
+                elif primary_obj_name == 'Carbon':
+                    return obj_val * 10.0         # Min Carbon
+                elif primary_obj_name == 'Quality_Robustness':
+                    return obj_val * 10.0         # Min PRI
+                elif primary_obj_name == 'Efficiency':
+                    return -obj_val               # Max Eff (取负号!)
+                else:
+                    return obj_val # 默认 Min
+
+
             # 情况A：不合格，返回一个 极其巨大的数。“这玩意太烂了，别选”
             # 情况 B：完全合格  RD ≥ 99.5，Carbon / Efficiency / PRI 都满足 ε 约束。 这时才开始比较 Cost
             # Cost 只有在“活下来以后”才有资格被比较
@@ -65,7 +99,7 @@ class HybridSolver:
         # ==========================================================
         # Phase 2: 执行优化 (DE -> SLSQP)
         # ==========================================================
-        # 1. 全局搜索
+        # 1. 全局搜索        “在 bounds 范围内，DE 会自动试很多个 x=[P,V,H]，每试一次就调用 relaxed_objective(x) 得到分数，最后选分数最小的那一个作为 de_res.x
         de_res = differential_evolution(
             relaxed_objective, self.bounds, strategy='best1bin', 
             maxiter=50, popsize=20, tol=1e-4, mutation=(0.5, 1.0), 
@@ -83,15 +117,15 @@ class HybridSolver:
         # ==========================================================
 
         # --- A. 尝试使用 SLSQP 的结果 ---
-        final_x = slsqp_res.x
-        final_metrics = self._get_all_metrics(final_x)
+        final_x = slsqp_res.x   #slsqp_res.x → 一个数组 [P, V, H] 它是 SLSQP 认为“更好的”解
+        final_metrics = self._get_all_metrics(final_x)  #这里面没有 Quality_Robustness
 
         # 🟢 [强制补全 1]：必须立刻计算 PRI 并塞入字典
         q_loss = (100.0 - final_metrics['RD']) ** 2
         s_loss = ((final_metrics['ED'] - 50.0) / 20.0) ** 2
         final_pri = q_loss + 1.0 * s_loss
         
-        final_metrics['Quality_Robustness'] = final_pri # <--- 关键赋值
+        final_metrics['Quality_Robustness'] = final_pri # <--- 关键赋值,把 PRI 塞回字典
 
         # 验证可行性
         is_feasible = True

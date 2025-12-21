@@ -77,13 +77,17 @@ def run_topsis_standard(df_input):
     eval_matrix = df_data[target_cols].astype(float).values
     
     # 定义权重 (Cost, Carbon, Eff, PRI)
-    weights = [0.2, 0.1, 0.3, 0.4]
+    weights = ([0.45, 0.25, 0.20, 0.10])
     
     # 定义方向 (根据 topsis.py: False=Min, True=Max)
     # Cost(Min), Carbon(Min), Efficiency(Max), PRI(Min)
     criteria = [False, False, True, False]
     
     try:
+        if Topsis is None:
+             raise ImportError("Topsis module not loaded.")
+        
+
         t = Topsis(eval_matrix, weights, criteria)
         t.calc() # 这里会打印中间步骤
         scores = t.worst_similarity
@@ -139,3 +143,24 @@ def plot_3d_result(df):
         print("🖼️  图片已保存: pareto_result_3d.png")
     except Exception as e:
         print(f"⚠️ 绘图失败: {e}")
+
+# ==========================================
+# 4. 程序入口 
+# ==========================================
+if __name__ == "__main__":
+    # 指定要读取的文件名 (由 main.py 生成)
+    input_file = "raw_pareto_results.xlsx"
+    
+    if os.path.exists(input_file):
+        print(f"📂 正在加载数据: {input_file}")
+        try:
+            # 读取 Excel 文件
+            df = pd.read_excel(input_file)
+            
+            # 运行 TOPSIS 排序
+            run_topsis_standard(df)
+            
+        except Exception as e:
+            print(f"❌ 读取文件出错: {e}")
+    else:
+        print(f"❌ 找不到文件 '{input_file}'。请先运行 main.py 生成数据。")

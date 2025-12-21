@@ -16,13 +16,13 @@ import post_process                        # Layer 4: 后处理 (画图/排序)
 # 后面的目标 ('Carbon') 将被作为 epsilon 约束目标
 OBJECTIVE_CONFIG = {
     'Cost': {'type': 'min'}, # 成本：越低越好
-    'Carbon': {'type': 'min'}, # 碳排放：越低越好
-    'Efficiency': {'type': 'max'}, # 效率：越高越好
-    'Quality_Robustness': {'type': 'min'}  #工艺鲁棒性/PRI (Min) -> 越小代表质量越好且越稳
+    'Quality_Robustness': {'type': 'min'},  #工艺鲁棒性/PRI (Min) -> 越小代表质量越好且越稳
+     'Carbon': {'type': 'min'}, # 碳排放：越低越好
+    'Efficiency': {'type': 'max'} # 效率：越高越好
 }
 
 # 网格密度 (决定帕累托前沿的精细度)
-GRID_POINTS = 5
+GRID_POINTS = 10
 
 def run_pipeline():
     print(f"{'='*60}")
@@ -100,23 +100,4 @@ def run_pipeline():
 
 if __name__ == "__main__":
     run_pipeline()
-
-
-
-
-
-
-
-                
-
-
-
-
-
-
-
-
-
-
-
 

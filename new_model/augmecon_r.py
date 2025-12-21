@@ -140,21 +140,17 @@ class AugmeconRGamsStyle:
 
     def solve(self):
         """
-        Phase 2: 执行 AUGMECON-R 主循环
-        
-        【算法创新点 2：容错跳过机制】
-        在传统的 GAMS 逻辑中，如果网格点无解会中断。
-        这里我们允许部分网格点无解（物理不可行），并自动跳过，确保程序能遍历完所有物理上存在的解。
+        Phase 2: 执行 AUGMECON-R 主循环 (Strict Mode)
+        集成两大加速引擎：
+        1. Slack Jump: 容易满足时，大步跳跃。
+        2. Early Exit: 发现无解时，直接熔断退出，不再纠缠。
         """
-        # 1. 先计算边界
-        self.calculate_payoff_table()
+        if not self.grids: self.calculate_payoff_table()
         
-        print(f"\n  [AUGMECON-R] Starting Main Loop (Robust Search)...")
+        print(f"\n  [AUGMECON-R] Starting Main Loop (Strict & Fast)...")
         
-        # 初始化网格计数器
         posg = [0] * self.n_constr 
         maxg = [self.grid_points] * self.n_constr
-        
         all_solutions = []
         infeas_count = 0
         iter_count = 0
@@ -162,44 +158,73 @@ class AugmeconRGamsStyle:
         while True:
             iter_count += 1
             
-            # 1. 构建当前的约束条件 (RHS: Right Hand Side)
+            # 1. 构建约束
             current_constraints = {}
             for i, obj in enumerate(self.constrained_objs):
                 idx = posg[i]
                 val = self.grids[obj][idx]
                 current_constraints[obj] = val
             
-            # 2. 调用 Layer 3 求解
+            # 2. 求解
             res = self.solver.solve(self.primary_obj, current_constraints)
             
+            # 默认只走一步
+            active_jump = 1
+            remaining_steps = maxg[-1] - posg[-1]
+            
             if res is not None:
-                # ✅ 找到可行解
+                # ✅ [Case A] 找到解 -> 尝试利用 Slack 跳跃
                 res['is_feasible'] = True
                 all_solutions.append(res)
-                active_jump = 1 # 步进 1
                 
+                innermost_obj = self.constrained_objs[-1]
+                eps_val = current_constraints[innermost_obj]
+                achieved = res[innermost_obj]
+                step = self.ranges[innermost_obj]['step']
+                
+                if step > 1e-12:
+                    # 计算松弛量
+                    if self.obj_config[innermost_obj]['type'] == 'min':
+                        slack = eps_val - achieved  # Min目标: 限值 - 实际
+                    else:
+                        slack = achieved - eps_val  # Max目标: 实际 - 限值
+                    
+                    if slack < 0: slack = 0
+                    
+                    # 🚀 核心加速 1: 只要有富余，就跳！
+                    jump = int(slack / step)
+                    # jump+1 代表直接跳到“下一个可能不满足”的未知区域
+                    active_jump = max(1, min(jump + 1, remaining_steps + 1))
+                    
+                    if active_jump > 1:
+                        # 打印一下让你看着爽
+                        # print(f"    >> 🚀 Jump! Skipped {active_jump-1} grids (Slack={slack:.4f})")
+                        pass
+
             else:
-                # ❌ 未找到解 (Skip)
-                # 这不是错误，而是探索到了物理不可行区域 (Infeasible Region)
+                # ❌ [Case B] 无解 -> 触发熔断机制 (Early Exit)
                 infeas_count += 1
-                active_jump = 1 # 跳过当前点，继续探索下一个
-            
-            # 3. 递归更新网格索引 (Nested Loop Logic)
+                
+                # 🚀 核心加速 2: 既然当前宽松条件都无解，后面更严的肯定无解
+                # 直接跳过这一整行内层循环！
+                active_jump = remaining_steps + 1
+                # print(f"    >> 🛑 Infeasible. Early exit inner loop.")
+
+            # 3. 更新索引 (递归进位)
             innermost_idx = self.n_constr - 1
             current_dim = innermost_idx
             
             posg[current_dim] += active_jump
             
-            # 处理进位 (Carry Over)
+            # 处理进位
             while current_dim >= 0:
                 if posg[current_dim] > maxg[current_dim]:
-                    # 当前维度跑完了
                     if current_dim == 0:
-                        # 最外层也跑完了 -> 彻底结束
-                        print(f"\n  [AUGMECON-R] Loop Finished. Solutions: {len(all_solutions)}, Infeas: {infeas_count}")
+                        print(f"\n  [AUGMECON-R] Loop Finished.")
+                        print(f"  -> Valid Solutions: {len(all_solutions)}")
+                        print(f"  -> Infeasible/Skipped: {infeas_count} (Actual calls)")
                         return pd.DataFrame(all_solutions)
                     
-                    # 进位：当前层归零，上一层 +1
                     posg[current_dim] = 0
                     current_dim -= 1
                     posg[current_dim] += 1
