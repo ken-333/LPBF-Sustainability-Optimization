@@ -1,0 +1,30 @@
+import numpy as np
+import pandas as pd
+
+# 1. 重新生成数据
+P_range = np.linspace(150, 450, 30)  # 功率范围
+V_range = np.linspace(600, 1200, 30) # 速度范围
+H_fixed = 100  # 固定层厚
+
+P_grid, V_grid = np.meshgrid(P_range, V_range)
+
+# 请替换为你真实的回归公式！(这里仅为演示)
+# 假设公式：RD = 95 - 0.0001*(P-300)^2 - 0.00005*(V-800)^2
+def calculate_RD(p, v, h):
+    val = 95 - 0.0001*(p-300)**2 - 0.00005*(v-800)**2
+    return np.clip(val, 0, 100)
+
+RD_grid = calculate_RD(P_grid, V_grid, H_fixed)
+
+# 2. 保存为 Excel (.xlsx)
+data = {
+    'Power': P_grid.flatten(),   # 简短的列名方便Origin识别
+    'Speed': V_grid.flatten(),
+    'RD': RD_grid.flatten()
+}
+df = pd.DataFrame(data)
+
+# 这里是关键：保存为 Excel
+df.to_excel('surface_data_fixed.xlsx', index=False)
+
+print("成功生成 Excel 文件：surface_data_fixed.xlsx")
